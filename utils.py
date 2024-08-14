@@ -363,6 +363,7 @@ def init_weights(net, init_type='normal', init_gain=0.02):
 
     print('initialize network with %s' % init_type)
     net.apply(init_func)  # apply the initialization function <init_func>
+
 def one_hot_encode(input_tensor):
     if len(input_tensor.shape) == 4:
         a,b,c,d = input_tensor.shape

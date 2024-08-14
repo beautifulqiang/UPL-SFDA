@@ -41,22 +41,30 @@ def train(config,train_loader,valid_loader,test_loader,target,list_data):
     # load exp_name
     exp_name = config['train']['exp_name']
     dataset = config['train']['dataset']
+
+    # 确定类别数量
     if dataset=='fb':
         num_classes = config['network']['n_classes_fb']
     elif dataset=='mms':
         num_classes = config['network']['n_classes_mms']
+    
     # load model
     device = torch.device('cuda:{}'.format(config['train']['gpu']))
     upl_model = UNet(config).to(device)
     upl_model.train()
+
+    # 加载预训练模型权重
     if dataset == 'fb':
         upl_model.load_state_dict(torch.load(config['train']['source_model_root_fb'],map_location='cpu'),strict=False)
     elif dataset == 'mms':
         upl_model.load_state_dict(torch.load(config['train']['source_model_root_mms'],map_location='cpu'),strict=False)
+
+    # 同步辅助解码器的权重
     dec1 = upl_model.aux_dec1.state_dict()
     upl_model.aux_dec2.load_state_dict(dec1)
     upl_model.aux_dec3.load_state_dict(dec1)
     upl_model.aux_dec4.load_state_dict(dec1)
+
     # load train details
     num_epochs = config['train']['num_epochs']
     valid_epochs = config['train']['valid_epoch']
@@ -68,9 +76,11 @@ def train(config,train_loader,valid_loader,test_loader,target,list_data):
             B_label = B_label.to(device).detach()
             if config['train']['train_target']:
                 upl_model.save_nii(B)
-                upl_model.trian_target(B)  
+                upl_model.train_target(B)  
             else:
                 upl_model.train_source(B,B_label) 
+        
+        # 每过了valid epoch之后进行一次验证
         if (epoch) % valid_epochs == 0:
             current_dice = 0.
             with torch.no_grad():
@@ -88,10 +98,12 @@ def train(config,train_loader,valid_loader,test_loader,target,list_data):
                     one_case_dice = np.array(one_case_dice)
                     one_case_dice = np.mean(one_case_dice,axis=0) 
                     current_dice += one_case_dice
+            
+            # 保存最好模型
             if (current_dice / (it+1)) > best_dice:
                 best_dice = current_dice / (it+1)
                 model_dir = "save_model_revised_TMI/" + str(exp_name+'_'+target)
-                if(not os.path.exists(model_dir)):
+                if not os.path.exists(model_dir):
                     os.mkdir(model_dir)
                 best_epoch = '{}/model-{}-{}-{}.pth'.format(model_dir, 'best', str(j+1), best_dice)
                 torch.save(upl_model.state_dict(), best_epoch)
